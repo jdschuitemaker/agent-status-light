@@ -7,12 +7,13 @@ status_dir="$HOME/Library/Application Support/AgentStatusLight"
 write_state() {
   local state="$1"
   local source_name="${2:-cli}"
+  local safe_source="${source_name//[^A-Za-z0-9_.-]/_}"
   mkdir -p "$status_dir"
   local timestamp tmp_file
   timestamp="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
   tmp_file="$(mktemp "$status_dir/status.XXXXXX")"
   print -r -- "{\"state\":\"$state\",\"updatedAt\":\"$timestamp\",\"source\":\"$source_name\"}" > "$tmp_file"
-  mv -f "$tmp_file" "$status_dir/status.json"
+  mv -f "$tmp_file" "$status_dir/status.${safe_source}.json"
 }
 
 if [[ "${1:-}" == run ]]; then
