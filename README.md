@@ -12,6 +12,14 @@ When the light changes to red, it plays an original two-note descending alert.
 Use **Play failure sound** in the menu-bar app to toggle it. The sound is
 synthesized locally by the app and is not an ICQ audio recording.
 
+To preview the red sound manually while the app is running:
+
+```zsh
+Scripts/agent-status-light error preview
+```
+
+Clear the preview afterward with `Scripts/agent-status-light off preview`.
+
 When Codex requests user input—for example, an approval—the light turns orange
 and plays the macOS **Ping** system sound. Use **Play input-request sound** to
 toggle that alert independently. The orange state is driven by Codex's

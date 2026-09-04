@@ -42,8 +42,15 @@ elif event == "session-end":
     set_state("off")
 elif event == "post":
     response = payload.get("tool_response") or {}
-    failed = (response.get("is_error") is True or
-              response.get("success") is False or
-              bool(response.get("error")))
+    if isinstance(response, dict):
+        failed = (response.get("is_error") is True or
+                  response.get("success") is False or
+                  bool(response.get("error")))
+    else:
+        # Codex may provide tool output as a string. Never let a malformed or
+        # unexpected hook payload make the lifecycle hook itself fail.
+        failed = (payload.get("is_error") is True or
+                  payload.get("success") is False or
+                  bool(payload.get("error")))
     if failed:
         set_state("error")
