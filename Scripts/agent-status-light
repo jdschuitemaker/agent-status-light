@@ -37,6 +37,7 @@ case "${1:-}" in
   working|thinking|busy) state=working ;;
   completed|complete|done|success) state=completed ;;
   failed|failure|error) state=failed ;;
+  awaiting-input|input|approval) state=awaiting-input ;;
   off|idle|clear) state=off ;;
   *)
     print -u2 "Usage: agent-status-light {working|done|error|off} [source]"
