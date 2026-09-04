@@ -38,6 +38,20 @@ its `notification` hook.
 > agent and Copilot CLI). Claude Code and Cursor hook configuration is included,
 > but those integrations have not yet been verified.
 
+## Downloading a prebuilt app
+
+GitHub releases include `Agent-Status-Light-macOS.zip`, a ready-to-run build of
+the menu-bar app. The app is ad-hoc signed for local development but is **not
+notarized by Apple**, so the first launch on a Mac that downloads it may show a
+Gatekeeper warning ("cannot be opened because the developer cannot be
+verified"). That is expected. To open it, Control-click the app and choose
+**Open** from the shortcut menu, or open System Settings → Privacy & Security
+and click **Open Anyway**. Apple explains the steps here:
+[Open a Mac app from an unidentified developer](https://support.apple.com/guide/mac/open-a-mac-app-from-an-unidentified-developer-mh40616/mac).
+
+Building from source with `Scripts/build-app.sh` avoids the warning because the
+app is created on your own Mac.
+
 ## First-time installation from GitHub
 
 **Requirements:** macOS 13 or later, Python 3, and Xcode Command Line Tools
