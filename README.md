@@ -3,11 +3,16 @@
 A native macOS menu-bar equivalent of the ESP32 traffic light from the
 [AI Status Light reference project](https://github.com/Z060049/AI-status-light-Claude-Code-Cursor-Codex):
 
-- yellow, breathing dot: agent is working
+- bright yellow, breathing dot: agent is working
 - orange dot: agent is waiting for your approval or answer
 - green dot: task completed
 - red dot: tool call failed
 - gray dot: off / idle
+
+Each indicator is a colored dot with the agent's initial centered inside it
+unless you configure a custom logo: `O` for Codex, `G` for GitHub Copilot,
+`>` for Cursor, and `A` for Claude Code. The initial is white on colored dots
+and black on the gray/off dot so it stays readable.
 
 When the light changes to red, it plays an original two-note descending alert.
 Use **Play failure sound** in the menu-bar app to toggle it. The sound is
@@ -84,20 +89,30 @@ menu-bar app can remain open while you work in any project.
 
 The menu bar starts with one Codex indicator. To watch another agent, open an
 indicator's menu and choose **Add** ▸ the agent's name (GitHub Copilot, Cursor,
-or Claude Code). Each indicator reads its own status file and uses a distinct
-fallback mark (`O`, `G`, `>`, and `A`); the **Add** submenu lists only agents
-that are not already shown. Use **Close [agent] indicator** in that indicator's
-own menu to remove just its icon — no icon can close another — and the set of
-shown indicators is remembered between launches. Open an indicator's menu and
-choose **Choose logo…** to select a PNG, ICNS, JPEG, or TIFF logo for that agent.
-Use **Use initial instead** to return to the fallback mark.
+or Claude Code). Each indicator reads its own status file; the **Add** submenu
+lists only agents that are not already shown, and the set of shown indicators is
+remembered between launches.
 
-Choose **Start at Login** from any indicator's menu to launch automatically
-after reboot. The first time you enable it, the app copies itself to
+Every indicator has the same menu:
+
+- a read-only header showing the agent name and current state — the app never
+  lets you set a status manually; states come from agent lifecycle hooks
+- **Add** ▸ agent name — show another agent's indicator
+- **Choose logo…** — use a PNG, ICNS, JPEG, or TIFF image instead of the initial
+- **Use initial instead** — return to the fallback initial
+- **Reveal status file** — open the agent's status file in Finder
+- **Play failure sound** and **Play input-request sound** — toggle the red and
+  orange alerts independently
+- **Start at Login** — launch automatically after reboot
+- **Close [agent] indicator** — remove just this indicator (disabled when it is
+  the only one; no icon can close another)
+- **Quit Agent Status Light** — quit the app
+
+The first time you enable **Start at Login**, the app copies itself to
 `/Applications`, relaunches from there, and registers as a login item; newer
 macOS versions may ask you to approve it under System Settings → General →
-Login Items. Uncheck **Start at Login** to stop auto-launching. Closing an
-indicator or quitting the app later does not change the login-item setting.
+Login Items. Unchecking it stops auto-launching. Closing an indicator or
+quitting the app later does not change the login-item setting.
 
 GitHub Copilot integration uses user-level hooks under `~/.copilot/hooks/`,
 shared by Copilot CLI and VS Code. The VS Code Copilot extension does not expose
@@ -122,7 +137,9 @@ Scripts/build-app.sh
 open "dist/Agent Status Light.app"
 ```
 
-The app has no Dock icon and keeps running in the menu bar. Use its menu to set a state manually or quit it.
+The app has no Dock icon and keeps running in the menu bar. Use an indicator's
+menu to add or remove indicators, choose logos and sounds, enable Start at
+Login, or quit the app.
 
 ## Drive it from an agent or hook
 
@@ -177,8 +194,8 @@ python3 Scripts/install-hooks.py
 Existing hook configuration is backed up and preserved. The installer also adds
 only `~/Library/Application Support/AgentStatusLight` as an extra writable root
 to Codex's user-level sandbox configuration. This lets the status hook update its
-single shared file without prompting for permission in each project; it does not
-grant broader filesystem access.
+per-agent status files without prompting for permission in each project; it does
+not grant broader filesystem access.
 
 Restart Claude Code, Cursor, and Codex after installation so they reload their hooks.
 For Codex, ensure the `hooks` feature is enabled with `codex features enable hooks`.
