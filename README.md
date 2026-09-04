@@ -78,6 +78,12 @@ The app now watches the selected folder tree. A session started in that folder
 or a subfolder changes the light automatically; sessions elsewhere do not. The
 menu-bar app can remain open while you work in any project.
 
+The menu bar contains independent indicators for Codex, GitHub Copilot, Cursor,
+and Claude Code. Each indicator reads its own status file. By default they use
+distinct fallback marks (`O`, `G`, `>`, and `A`); open an indicator's menu and
+choose **Choose logo…** to select a PNG, ICNS, JPEG, or TIFF logo for that agent.
+Use **Use initial instead** to return to the fallback mark.
+
 GitHub Copilot support applies to **Copilot CLI**, which provides user-level
 hooks under `~/.copilot/hooks/`. The VS Code Copilot extension does not currently
 expose the same lifecycle-hook API, so it cannot be integrated automatically by
