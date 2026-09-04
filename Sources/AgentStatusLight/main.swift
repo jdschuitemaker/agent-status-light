@@ -62,13 +62,13 @@ struct StatusRecord: Codable { var state: AgentState; var updatedAt: Date; var s
             if fm.fileExists(atPath: destination.path) { try fm.removeItem(at: destination) }
             try fm.copyItem(at: source, to: destination)
             UserDefaults.standard.set(true, forKey: "autoStartRelaunchPending")
-            NSWorkspace.shared.openApplication(at: destination, configuration: NSWorkspace.OpenConfiguration()) { _, error in
-                if let error {
-                    Task { @MainActor [weak self] in self?.showAlert("Couldn't relaunch from /Applications", error.localizedDescription) }
-                } else {
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { NSApp.terminate(nil) }
-                }
-            }
+            // Launching through NSWorkspace would just activate this running
+            // instance (same bundle identifier), so start the new copy's
+            // executable directly, then close the old instance.
+            let relauncher = Process()
+            relauncher.executableURL = destination.appendingPathComponent("Contents/MacOS/AgentStatusLight")
+            try relauncher.run()
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { NSApp.terminate(nil) }
         } catch {
             showAlert("Couldn't copy Agent Status Light to /Applications", "\(error.localizedDescription)\n\nMove the app to /Applications manually, launch it from there, and choose Start at Login again.")
         }
