@@ -44,8 +44,8 @@ location after installing: the agent hooks refer to its scripts by absolute path
    `Package.swift`). Or clone the repository:
 
    ```zsh
-   git clone <repository-url>
-   cd <repository-folder>/AgentStatusLight
+   git clone https://github.com/jdschuitemaker/agent-status-light.git
+   cd agent-status-light/AgentStatusLight
    ```
 
 2. Build and start the menu-bar app:
@@ -91,6 +91,13 @@ own menu to remove just its icon — no icon can close another — and the set o
 shown indicators is remembered between launches. Open an indicator's menu and
 choose **Choose logo…** to select a PNG, ICNS, JPEG, or TIFF logo for that agent.
 Use **Use initial instead** to return to the fallback mark.
+
+Choose **Start at Login** from any indicator's menu to launch automatically
+after reboot. The first time you enable it, the app copies itself to
+`/Applications`, relaunches from there, and registers as a login item; newer
+macOS versions may ask you to approve it under System Settings → General →
+Login Items. Uncheck **Start at Login** to stop auto-launching. Closing an
+indicator or quitting the app later does not change the login-item setting.
 
 GitHub Copilot integration uses user-level hooks under `~/.copilot/hooks/`,
 shared by Copilot CLI and VS Code. The VS Code Copilot extension does not expose
