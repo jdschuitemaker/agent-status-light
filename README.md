@@ -12,6 +12,11 @@ When the light changes to red, it plays an original two-note descending alert.
 Use **Play failure sound** in the menu-bar app to toggle it. The sound is
 synthesized locally by the app and is not an ICQ audio recording.
 
+When Codex requests user input—for example, an approval—the light turns orange
+and plays the macOS **Ping** system sound. Use **Play input-request sound** to
+toggle that alert independently. The orange state is driven by Codex's
+`PermissionRequest` hook and has been tested only with Codex.
+
 > **Compatibility:** This project has been tested only with Codex. Claude Code
 > and Cursor hook configuration is included, but those integrations have not
 > yet been tested.

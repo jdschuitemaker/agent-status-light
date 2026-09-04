@@ -3,13 +3,14 @@ import AVFoundation
 import Foundation
 
 enum AgentState: String, Codable, CaseIterable {
-    case working, completed, failed, off
+    case working, completed, failed, awaitingInput = "awaiting-input", off
 
     var title: String {
         switch self {
         case .working: "Working"
         case .completed: "Task completed"
         case .failed: "Tool call failed"
+        case .awaitingInput: "Input required"
         case .off: "Off"
         }
     }
@@ -19,6 +20,7 @@ enum AgentState: String, Codable, CaseIterable {
         case .working: .systemYellow
         case .completed: .systemGreen
         case .failed: .systemRed
+        case .awaitingInput: .systemOrange
         case .off: .secondaryLabelColor
         }
     }
@@ -34,11 +36,13 @@ struct StatusRecord: Codable {
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private let completedDisplayDuration: TimeInterval = 20
     private let failureSoundPreferenceKey = "playFailureSound"
+    private let inputSoundPreferenceKey = "playInputSound"
     private var item: NSStatusItem!
     private var state: AgentState = .off
     private var pulse = 0.0
     private var shouldPlayStateSounds = false
     private var failureSoundPlayer: AVAudioPlayer?
+    private var inputSound: NSSound?
     private var pulseTimer: Timer?
     private var stateTimer: Timer?
     private let statusURL: URL = {
@@ -95,6 +99,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         failureSound.target = self
         failureSound.state = failureSoundEnabled ? .on : .off
         menu.addItem(failureSound)
+        let inputSound = NSMenuItem(title: "Play input-request sound", action: #selector(toggleInputSound), keyEquivalent: "")
+        inputSound.target = self
+        inputSound.state = inputSoundEnabled ? .on : .off
+        menu.addItem(inputSound)
         let location = NSMenuItem(title: "Reveal status file", action: #selector(revealStatusFile), keyEquivalent: "")
         location.target = self
         menu.addItem(location)
@@ -122,6 +130,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         failureSoundEnabled.toggle()
     }
 
+    @objc private func toggleInputSound() {
+        inputSoundEnabled.toggle()
+    }
+
     @objc private func quit() { NSApp.terminate(nil) }
 
     private func readState() -> AgentState {
@@ -142,10 +154,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         state = newState
         renderIcon()
         if shouldPlayStateSounds,
-           newState == .failed,
-           previousState != .failed,
-           failureSoundEnabled {
-            playFailureSound()
+           newState != previousState {
+            if newState == .failed, failureSoundEnabled {
+                playFailureSound()
+            } else if newState == .awaitingInput, inputSoundEnabled {
+                playInputSound()
+            }
         }
         if persist { persistState() }
     }
@@ -158,12 +172,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         set { UserDefaults.standard.set(newValue, forKey: failureSoundPreferenceKey) }
     }
 
+    private var inputSoundEnabled: Bool {
+        get {
+            guard UserDefaults.standard.object(forKey: inputSoundPreferenceKey) != nil else { return true }
+            return UserDefaults.standard.bool(forKey: inputSoundPreferenceKey)
+        }
+        set { UserDefaults.standard.set(newValue, forKey: inputSoundPreferenceKey) }
+    }
+
     private func playFailureSound() {
         do {
             failureSoundPlayer = try AVAudioPlayer(data: makeFailureSound())
             failureSoundPlayer?.volume = 0.65
             failureSoundPlayer?.play()
         } catch {
+            NSSound.beep()
+        }
+    }
+
+    private func playInputSound() {
+        inputSound = NSSound(named: NSSound.Name("Ping"))
+        if inputSound?.play() != true {
             NSSound.beep()
         }
     }

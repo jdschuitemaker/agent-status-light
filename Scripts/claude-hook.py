@@ -36,6 +36,8 @@ if event == "pre":
     set_state("working")
 elif event == "stop":
     set_state("done")
+elif event == "permission-request":
+    set_state("awaiting-input")
 elif event == "session-end":
     set_state("off")
 elif event == "post":

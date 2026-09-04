@@ -114,6 +114,7 @@ for event, action in {
     "SessionStart": "pre",
     "UserPromptSubmit": "pre",
     "PreToolUse": "pre",
+    "PermissionRequest": "permission-request",
     "PostToolUse": "post",
     "Stop": "stop",
     "SessionEnd": "session-end",
