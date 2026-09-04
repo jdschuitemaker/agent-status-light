@@ -1,6 +1,7 @@
 # Agent Status Light for macOS
 
-A native menu-bar equivalent of the reference project's ESP32 traffic light:
+A native macOS menu-bar equivalent of the ESP32 traffic light from the
+[AI Status Light reference project](https://github.com/Z060049/AI-status-light-Claude-Code-Cursor-Codex):
 
 - yellow, breathing dot: agent is working
 - green dot: task completed
