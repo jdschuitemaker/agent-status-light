@@ -145,6 +145,9 @@ for event, action in {
     "permissionRequest": "permissionRequest",
     "agentStop": "agentStop",
     "errorOccurred": "errorOccurred",
+    # CLI-only async signal for permission prompts and elicitation dialogs;
+    # VS Code's own hook runner ignores this key, which is fine there.
+    "notification": "notification",
 }.items():
     copilot_hooks[event] = set_hook(copilot_hooks.get(event, []), copilot_hook(action))
 write(copilot_path, copilot)

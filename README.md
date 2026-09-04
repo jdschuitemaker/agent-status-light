@@ -4,6 +4,7 @@ A native macOS menu-bar equivalent of the ESP32 traffic light from the
 [AI Status Light reference project](https://github.com/Z060049/AI-status-light-Claude-Code-Cursor-Codex):
 
 - yellow, breathing dot: agent is working
+- orange dot: agent is waiting for your approval or answer
 - green dot: task completed
 - red dot: tool call failed
 - gray dot: off / idle
@@ -20,14 +21,17 @@ Scripts/agent-status-light error preview
 
 Clear the preview afterward with `Scripts/agent-status-light off preview`.
 
-When Codex requests user input—for example, an approval—the light turns orange
-and plays the macOS **Ping** system sound. Use **Play input-request sound** to
-toggle that alert independently. The orange state is driven by Codex's
-`PermissionRequest` hook and has been tested only with Codex.
+When an agent asks for your input—an approval, or a choice between options—the
+light turns orange and plays the macOS **Ping** system sound. Use
+**Play input-request sound** to toggle that alert independently. The orange
+state is driven by Codex's `PermissionRequest` hook, and for GitHub Copilot's
+VS Code agent by its `PreToolUse` events (ask-questions tools and terminal
+commands that need your approval). Copilot CLI reports the same waits through
+its `notification` hook.
 
-> **Compatibility:** This project has been tested only with Codex. Claude Code,
-> Cursor, and GitHub Copilot CLI hook configuration is included, but those
-> integrations have not yet been tested.
+> **Compatibility:** Tested with Codex and GitHub Copilot (both the VS Code
+> agent and Copilot CLI). Claude Code and Cursor hook configuration is included,
+> but those integrations have not yet been verified.
 
 ## First-time installation from GitHub
 
@@ -78,16 +82,29 @@ The app now watches the selected folder tree. A session started in that folder
 or a subfolder changes the light automatically; sessions elsewhere do not. The
 menu-bar app can remain open while you work in any project.
 
-The menu bar contains independent indicators for Codex, GitHub Copilot, Cursor,
-and Claude Code. Each indicator reads its own status file. By default they use
-distinct fallback marks (`O`, `G`, `>`, and `A`); open an indicator's menu and
+The menu bar starts with one Codex indicator. To watch another agent, open an
+indicator's menu and choose **Add** ▸ the agent's name (GitHub Copilot, Cursor,
+or Claude Code). Each indicator reads its own status file and uses a distinct
+fallback mark (`O`, `G`, `>`, and `A`); the **Add** submenu lists only agents
+that are not already shown. Use **Close [agent] indicator** in that indicator's
+own menu to remove just its icon — no icon can close another — and the set of
+shown indicators is remembered between launches. Open an indicator's menu and
 choose **Choose logo…** to select a PNG, ICNS, JPEG, or TIFF logo for that agent.
 Use **Use initial instead** to return to the fallback mark.
 
-GitHub Copilot support applies to **Copilot CLI**, which provides user-level
-hooks under `~/.copilot/hooks/`. The VS Code Copilot extension does not currently
-expose the same lifecycle-hook API, so it cannot be integrated automatically by
-this installer.
+GitHub Copilot integration uses user-level hooks under `~/.copilot/hooks/`,
+shared by Copilot CLI and VS Code. The VS Code Copilot extension does not expose
+a dedicated waiting-for-input event for its own chat agents, so the status
+light infers the wait from `PreToolUse` tool names: ask-questions tools
+(`vscode_askQuestions`) always turn the light orange, and terminal tools
+(`run_in_terminal`) turn it orange unless the exact command is on VS Code's
+`chat.tools.terminal.autoApprove` list. Copilot CLI's `notification` hook covers
+the same waits when the CLI engine itself prompts (including Copilot CLI
+sessions in VS Code); benign notifications leave the current state untouched.
+The matching `PostToolUse` or `Stop` event moves the light back to working or
+completed. Every hook invocation is recorded (sensitive fields stripped) in
+`~/Library/Application Support/AgentStatusLight/hook-events.log` to make
+lifecycle issues easy to diagnose.
 
 ## Build and run manually
 
@@ -112,7 +129,12 @@ agent-status-light error codex
 agent-status-light off
 ```
 
-The command atomically writes `~/Library/Application Support/AgentStatusLight/status.json`; the menu-bar app notices changes within a second. The optional second argument is recorded as the event source, so the same command is suitable for Claude Code, Cursor, Codex, or a custom workflow. Once installed on your `PATH`, you can invoke it from any folder.
+The command atomically writes
+`~/Library/Application Support/AgentStatusLight/status.<agent>.json`; each
+indicator polls its own file and notices changes within a second. The second
+argument selects the agent (the default is `cli`), so the same command is
+suitable for Claude Code, Cursor, Codex, GitHub Copilot, or a custom workflow.
+Once installed on your `PATH`, you can invoke it from any folder.
 
 For a hook integration, invoke `agent-status-light working <agent>` before tool work, `done` after success, and `error` when a tool invocation fails.
 
@@ -127,7 +149,8 @@ agent-status-light run codex -- codex exec "your task"
 
 Agent-specific hooks can call the same state commands: use `working` on the
 agent's pre-action event, `done` on success, and `error` on failure. The app
-polls the shared status file and animates yellow while the state is working.
+polls the per-agent status files and animates yellow while the state is
+working.
 
 ## Configuration details
 
