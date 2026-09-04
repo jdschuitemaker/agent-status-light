@@ -32,15 +32,17 @@ try:
 except (json.JSONDecodeError, EOFError):
     pass
 
-if event == "pre":
+if event in ("pre", "sessionStart", "userPromptSubmitted", "preToolUse"):
     set_state("working")
-elif event == "stop":
+elif event in ("stop", "agentStop"):
     set_state("done")
-elif event == "permission-request":
+elif event in ("permission-request", "permissionRequest"):
     set_state("awaiting-input")
-elif event == "session-end":
+elif event in ("session-end", "sessionEnd"):
     set_state("off")
-elif event == "post":
+elif event == "errorOccurred":
+    set_state("error")
+elif event in ("post", "postToolUse"):
     response = payload.get("tool_response") or {}
     if isinstance(response, dict):
         failed = (response.get("is_error") is True or

@@ -25,9 +25,9 @@ and plays the macOS **Ping** system sound. Use **Play input-request sound** to
 toggle that alert independently. The orange state is driven by Codex's
 `PermissionRequest` hook and has been tested only with Codex.
 
-> **Compatibility:** This project has been tested only with Codex. Claude Code
-> and Cursor hook configuration is included, but those integrations have not
-> yet been tested.
+> **Compatibility:** This project has been tested only with Codex. Claude Code,
+> Cursor, and GitHub Copilot CLI hook configuration is included, but those
+> integrations have not yet been tested.
 
 ## First-time installation from GitHub
 
@@ -65,7 +65,7 @@ location after installing: the agent hooks refer to its scripts by absolute path
    configuration, enables only the narrow status-file write permission for
    Codex, and leaves unrelated hooks unchanged.
 
-4. Restart Codex, Claude Code, and Cursor. In Codex, ensure hooks are enabled
+4. Restart Codex, Claude Code, Cursor, and Copilot CLI. In Codex, ensure hooks are enabled
    with `codex features enable hooks`; if it asks you to trust the newly added
    hooks, trust them once. There are no per-project status-light prompts after
    that.
@@ -77,6 +77,11 @@ location after installing: the agent hooks refer to its scripts by absolute path
 The app now watches the selected folder tree. A session started in that folder
 or a subfolder changes the light automatically; sessions elsewhere do not. The
 menu-bar app can remain open while you work in any project.
+
+GitHub Copilot support applies to **Copilot CLI**, which provides user-level
+hooks under `~/.copilot/hooks/`. The VS Code Copilot extension does not currently
+expose the same lifecycle-hook API, so it cannot be integrated automatically by
+this installer.
 
 ## Build and run manually
 
@@ -120,7 +125,8 @@ polls the shared status file and animates yellow while the state is working.
 
 ## Configuration details
 
-The installer configures user-level hooks for Claude Code, Cursor, and Codex.
+The installer configures user-level hooks for Claude Code, Cursor, Codex, and
+Copilot CLI.
 They apply to every session, but the status light changes only when that session's
 current directory is in the selected folder or one of its subfolders. Work outside
 that tree does not affect the light. This makes the project portable: each person

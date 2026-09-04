@@ -84,6 +84,15 @@ def codex_hook(action: str) -> dict:
         }],
     }
 
+def copilot_hook(event: str) -> dict:
+    """Return a GitHub Copilot CLI v1 user-hook entry."""
+    command_text = command("/usr/bin/env", "python3", CLAUDE, event, "copilot", SCOPE_ROOT)
+    return {
+        "type": "command",
+        "bash": command_text,
+        "timeoutSec": 30,
+    }
+
 home = Path.home()
 claude = load(home / ".claude/settings.json")
 hooks = claude.setdefault("hooks", {})
@@ -122,4 +131,21 @@ for event, action in {
     hooks[event] = set_hook(hooks.get(event, []), codex_hook(action))
 write(home / ".codex/hooks.json", codex)
 configure_codex_sandbox(home / ".codex/config.toml")
-print(f"Installed Agent Status Light hooks for Claude Code, Cursor, and Codex under {SCOPE_ROOT}.")
+
+copilot_path = home / ".copilot/hooks/agent-status-light.json"
+copilot = load(copilot_path)
+copilot["version"] = 1
+copilot_hooks = copilot.setdefault("hooks", {})
+for event, action in {
+    "sessionStart": "sessionStart",
+    "sessionEnd": "sessionEnd",
+    "userPromptSubmitted": "userPromptSubmitted",
+    "preToolUse": "preToolUse",
+    "postToolUse": "postToolUse",
+    "permissionRequest": "permissionRequest",
+    "agentStop": "agentStop",
+    "errorOccurred": "errorOccurred",
+}.items():
+    copilot_hooks[event] = set_hook(copilot_hooks.get(event, []), copilot_hook(action))
+write(copilot_path, copilot)
+print(f"Installed Agent Status Light hooks for Claude Code, Cursor, Codex, and Copilot CLI under {SCOPE_ROOT}.")
