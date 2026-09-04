@@ -8,6 +8,10 @@ A native macOS menu-bar equivalent of the ESP32 traffic light from the
 - red dot: tool call failed
 - gray dot: off / idle
 
+When the light changes to red, it plays an original two-note descending alert.
+Use **Play failure sound** in the menu-bar app to toggle it. The sound is
+synthesized locally by the app and is not an ICQ audio recording.
+
 > **Compatibility:** This project has been tested only with Codex. Claude Code
 > and Cursor hook configuration is included, but those integrations have not
 > yet been tested.

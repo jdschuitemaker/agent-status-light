@@ -1,4 +1,5 @@
 import AppKit
+import AVFoundation
 import Foundation
 
 enum AgentState: String, Codable, CaseIterable {
@@ -32,9 +33,12 @@ struct StatusRecord: Codable {
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private let completedDisplayDuration: TimeInterval = 20
+    private let failureSoundPreferenceKey = "playFailureSound"
     private var item: NSStatusItem!
     private var state: AgentState = .off
     private var pulse = 0.0
+    private var shouldPlayStateSounds = false
+    private var failureSoundPlayer: AVAudioPlayer?
     private var pulseTimer: Timer?
     private var stateTimer: Timer?
     private let statusURL: URL = {
@@ -57,6 +61,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // A missing state file resolves to `.off`, which is also the initial
         // value. Render anyway so a first launch always has a visible item.
         renderIcon()
+        shouldPlayStateSounds = true
 
         pulseTimer = Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true) { [weak self] _ in
             Task { @MainActor [weak self] in
@@ -86,6 +91,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             menu.addItem(menuItem)
         }
         menu.addItem(.separator())
+        let failureSound = NSMenuItem(title: "Play failure sound", action: #selector(toggleFailureSound), keyEquivalent: "")
+        failureSound.target = self
+        failureSound.state = failureSoundEnabled ? .on : .off
+        menu.addItem(failureSound)
         let location = NSMenuItem(title: "Reveal status file", action: #selector(revealStatusFile), keyEquivalent: "")
         location.target = self
         menu.addItem(location)
@@ -109,6 +118,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSWorkspace.shared.activateFileViewerSelecting([statusURL])
     }
 
+    @objc private func toggleFailureSound() {
+        failureSoundEnabled.toggle()
+    }
+
     @objc private func quit() { NSApp.terminate(nil) }
 
     private func readState() -> AgentState {
@@ -125,9 +138,83 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func setState(_ newState: AgentState, persist: Bool) {
         guard state != newState || persist else { return }
+        let previousState = state
         state = newState
         renderIcon()
+        if shouldPlayStateSounds,
+           newState == .failed,
+           previousState != .failed,
+           failureSoundEnabled {
+            playFailureSound()
+        }
         if persist { persistState() }
+    }
+
+    private var failureSoundEnabled: Bool {
+        get {
+            guard UserDefaults.standard.object(forKey: failureSoundPreferenceKey) != nil else { return true }
+            return UserDefaults.standard.bool(forKey: failureSoundPreferenceKey)
+        }
+        set { UserDefaults.standard.set(newValue, forKey: failureSoundPreferenceKey) }
+    }
+
+    private func playFailureSound() {
+        do {
+            failureSoundPlayer = try AVAudioPlayer(data: makeFailureSound())
+            failureSoundPlayer?.volume = 0.65
+            failureSoundPlayer?.play()
+        } catch {
+            NSSound.beep()
+        }
+    }
+
+    /// An original, two-note descending alert. It is synthesized locally rather
+    /// than copied from or derived from a third-party sound recording.
+    private func makeFailureSound() -> Data {
+        let sampleRate = 44_100
+        let duration = 0.58
+        let sampleCount = Int(Double(sampleRate) * duration)
+        let notes: [(start: Double, length: Double, frequency: Double)] = [
+            (0.00, 0.24, 494.0),
+            (0.29, 0.25, 370.0),
+        ]
+        var samples = [Int16](repeating: 0, count: sampleCount)
+
+        for index in samples.indices {
+            let time = Double(index) / Double(sampleRate)
+            var value = 0.0
+            for note in notes where time >= note.start && time < note.start + note.length {
+                let noteTime = time - note.start
+                let attack = min(noteTime / 0.018, 1.0)
+                let release = min((note.start + note.length - time) / 0.075, 1.0)
+                let envelope = attack * release
+                let phase = 2.0 * Double.pi * note.frequency * noteTime
+                // A small harmonic blend gives the tones a friendly, voiced quality.
+                value += envelope * (sin(phase) + 0.32 * sin(phase * 2.0) + 0.12 * sin(phase * 3.0))
+            }
+            samples[index] = Int16(max(-1.0, min(1.0, value * 0.38)) * Double(Int16.max))
+        }
+
+        var wav = Data()
+        func append<T: FixedWidthInteger>(_ value: T) {
+            var littleEndian = value.littleEndian
+            withUnsafeBytes(of: &littleEndian) { wav.append(contentsOf: $0) }
+        }
+        let dataSize = UInt32(samples.count * MemoryLayout<Int16>.size)
+        wav.append("RIFF".data(using: .ascii)!)
+        append(UInt32(36) + dataSize)
+        wav.append("WAVEfmt ".data(using: .ascii)!)
+        append(UInt32(16))
+        append(UInt16(1))
+        append(UInt16(1))
+        append(UInt32(sampleRate))
+        append(UInt32(sampleRate * MemoryLayout<Int16>.size))
+        append(UInt16(MemoryLayout<Int16>.size))
+        append(UInt16(16))
+        wav.append("data".data(using: .ascii)!)
+        append(dataSize)
+        for sample in samples { append(sample) }
+        return wav
     }
 
     private func persistState() {
