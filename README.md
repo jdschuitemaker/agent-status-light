@@ -8,6 +8,10 @@ A native macOS menu-bar equivalent of the ESP32 traffic light from the
 - red dot: tool call failed
 - gray dot: off / idle
 
+> **Compatibility:** This project has been tested only with Codex. Claude Code
+> and Cursor hook configuration is included, but those integrations have not
+> yet been tested.
+
 ## First-time installation from GitHub
 
 **Requirements:** macOS 13 or later, Python 3, and Xcode Command Line Tools
