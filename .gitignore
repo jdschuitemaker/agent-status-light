@@ -1,0 +1,9 @@
+# macOS Finder metadata
+.DS_Store
+
+# Swift Package Manager build products
+.build/
+.swiftpm/
+
+# Locally packaged app bundle; recreate with Scripts/build-app.sh
+dist/
