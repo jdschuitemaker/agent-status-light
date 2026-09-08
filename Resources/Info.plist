@@ -3,6 +3,7 @@
 <plist version="1.0"><dict>
   <key>CFBundleDisplayName</key><string>Agent Status Light</string>
   <key>CFBundleExecutable</key><string>AgentStatusLight</string>
+  <key>CFBundleIconFile</key><string>AppIcon</string>
   <key>CFBundleIdentifier</key><string>local.agentstatuslight</string>
   <key>CFBundleName</key><string>Agent Status Light</string>
   <key>CFBundlePackageType</key><string>APPL</string>

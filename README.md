@@ -122,9 +122,11 @@ Tested and working:
 - **Codex** — yellow as soon as you send a prompt, orange when it asks you
   something, green when it finishes.
 - **GitHub Copilot** — works in the VS Code agent and in Copilot CLI. VS Code
-  has no direct "waiting for you" event, so the app notices by the tool Copilot
-  is about to use (ask-questions tools and terminal commands that need your
-  approval).
+  has no direct "waiting for you" event for its own chat agent, so the app turns
+  orange when Copilot asks you a question with its ask-questions tool. Terminal
+  command cards are not treated as input requests because auto-run commands
+  look identical to approval prompts; Copilot CLI sessions still alert through
+  their own notification hook.
 
 Included but not yet verified:
 

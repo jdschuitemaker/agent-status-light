@@ -5,16 +5,14 @@ import json
 import os
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 CLI = Path(__file__).with_name("agent-status-light")
 SOURCE = sys.argv[2] if len(sys.argv) > 2 else "claude"
 SCOPE_ROOT = Path(sys.argv[3]).expanduser() if len(sys.argv) > 3 else Path.home() / "Development"
 LOG_PATH = Path.home() / "Library/Application Support/AgentStatusLight/hook-events.log"
-VSCODE_SETTINGS_PATHS = [
-    Path.home() / "Library/Application Support/Code - Insiders/User/settings.json",
-    Path.home() / "Library/Application Support/Code/User/settings.json",
-]
+STATUS_DIR = Path.home() / "Library/Application Support/AgentStatusLight"
 SENSITIVE_KEYS = {
     "args", "content", "env", "message", "modified_prompt", "modifiedprompt",
     "modified_transformed_prompt", "modifiedtransformedprompt", "prompt",
@@ -36,52 +34,45 @@ def scrub(value, depth=0):
     return value
 
 
-def load_auto_approved_commands() -> set:
-    """Return exact terminal commands VS Code may run without asking."""
-    approved = set()
-    for path in VSCODE_SETTINGS_PATHS:
-        try:
-            settings = json.loads(path.read_text())
-        except (OSError, json.JSONDecodeError):
-            continue
-        # VS Code stores settings with dotted keys at the top level.
-        auto = (settings or {}).get("chat.tools.terminal.autoApprove")
-        if not isinstance(auto, dict):
-            auto = (((settings or {}).get("chat") or {}).get("tools") or {})
-            auto = (auto.get("terminal") or {}).get("autoApprove") or {}
-        for rule, enabled in auto.items():
-            if enabled:
-                approved.add(str(rule).strip())
-    return approved
-
-
-def command_is_auto_approved(payload: dict) -> bool:
-    """Heuristic for VS Code's PreToolUse: does this terminal command run
-    without an approval prompt? VS Code auto-approves only exact commands
-    listed in chat.tools.terminal.autoApprove."""
-    tool_input = payload.get("tool_input")
-    if not isinstance(tool_input, dict):
-        return False
-    command = str(tool_input.get("command")
-                  or tool_input.get("cmd") or "").strip()
-    if not command:
-        return False
-    approved = load_auto_approved_commands()
-    return any(command == rule or command.startswith(rule + " ")
-               for rule in approved if rule)
-
-
 def vscode_pre_tool_waits_for_user(payload: dict) -> bool:
     """VS Code's own agent does not emit a waiting-for-input hook. Infer it
-    from the tool being invoked: askQuestions-style tools always wait for an
-    answer, and terminal tools wait for approval unless auto-approved."""
+    only from tools that genuinely ask the user something. Terminal tools are
+    excluded: auto-run command cards look identical to permission prompts, so
+    guessing there causes false input alerts."""
     tool = str(payload.get("tool_name") or "").lower()
     if tool in ("vscode_askquestions", "vscode_askuser", "askuser",
                 "ask_user", "question", "askquestions") or tool.startswith("vscode_ask"):
         return True
-    if tool in ("run_in_terminal", "bash", "terminal", "exec_command"):
-        return not command_is_auto_approved(payload)
     return False
+
+
+def is_terminal_tool(payload: dict) -> bool:
+    tool = str(payload.get("tool_name") or "").lower()
+    return tool in ("run_in_terminal", "bash", "terminal", "exec_command")
+
+
+def status_timestamp() -> str:
+    try:
+        record = json.loads((STATUS_DIR / f"status.{SOURCE}.json").read_text())
+        return str(record.get("updatedAt") or "")
+    except (OSError, json.JSONDecodeError):
+        return ""
+
+
+def schedule_terminal_watch() -> None:
+    """A permission-gated terminal command may sit waiting for the user while
+    VS Code emits no event. Ensure a fresh working baseline, then check a few
+    seconds later: if nothing updated the status file, the tool is still
+    waiting and we turn the light orange."""
+    set_state("working")
+    target = status_timestamp()
+    if not target:
+        return
+    helper = [sys.executable, str(Path(__file__).resolve()),
+              "watch-awaiting", SOURCE, str(SCOPE_ROOT), target]
+    subprocess.Popen(helper, stdin=subprocess.DEVNULL,
+                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                     start_new_session=True)
 
 
 def log_event(event: str, payload: dict) -> None:
@@ -127,18 +118,32 @@ try:
     payload = json.load(sys.stdin)
 except (json.JSONDecodeError, EOFError):
     pass
+
+if event == "watch-awaiting":
+    # Background helper spawned by schedule_terminal_watch.
+    target = sys.argv[4] if len(sys.argv) > 4 else ""
+    time.sleep(3)
+    if target and status_timestamp() == target:
+        set_state("awaiting-input")
+    raise SystemExit(0)
+
 log_event(event, payload)
 
 # Normalize names from all supported surfaces: Codex, Cursor, Claude Code,
 # GitHub Copilot CLI (camelCase), and VS Code Copilot (PascalCase).
 key = event.lower().replace("_", "").replace("-", "")
 
-if (key == "pretooluse" and SOURCE == "copilot"
-        and vscode_pre_tool_waits_for_user(payload)):
-    # VS Code native chat: no permission/notification hook exists, so detect
-    # the wait from the tool that is about to ask the user something. The
-    # matching PostToolUse (or agentStop) moves the light back afterwards.
-    set_state("awaiting-input")
+if key == "pretooluse" and SOURCE == "copilot":
+    # VS Code native chat: no permission/notification hook exists, so infer
+    # the wait from the tool. Ask-questions tools always wait. Terminal tools
+    # may wait for approval, so schedule a delayed check instead of assuming;
+    # the matching PostToolUse (or agentStop) cancels it by updating the file.
+    if vscode_pre_tool_waits_for_user(payload):
+        set_state("awaiting-input")
+    elif is_terminal_tool(payload):
+        schedule_terminal_watch()
+    else:
+        set_state("working")
 elif key in ("pre", "sessionstart", "userpromptsubmit", "userpromptsubmitted",
              "pretooluse", "subagentstart"):
     set_state("working")
