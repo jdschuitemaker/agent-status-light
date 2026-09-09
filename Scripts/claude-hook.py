@@ -51,6 +51,34 @@ def is_terminal_tool(payload: dict) -> bool:
     return tool in ("run_in_terminal", "bash", "terminal", "exec_command")
 
 
+def is_external_file_read(payload: dict) -> bool:
+    """VS Code asks before a read tool touches a file outside the session
+    folder. Detect that case so the delayed approval check can run."""
+    tool = str(payload.get("tool_name") or "").lower()
+    if tool not in ("read_file", "readfile", "read_text_file", "readtextfile",
+                    "read_file_range", "readfilerange"):
+        return False
+    tool_input = payload.get("tool_input")
+    if not isinstance(tool_input, dict):
+        return False
+    target = ""
+    for key in ("file_path", "filePath", "path", "absolutePath", "absolute_path"):
+        value = tool_input.get(key)
+        if isinstance(value, str) and value.strip():
+            target = value.strip()
+            break
+    if not target:
+        return False
+    try:
+        requested = Path(target).expanduser()
+        if not requested.is_absolute():
+            requested = Path(payload.get("cwd") or ".").resolve() / requested
+        workspace = Path(payload.get("cwd") or "").resolve()
+        return not requested.resolve().is_relative_to(workspace)
+    except (OSError, ValueError):
+        return False
+
+
 def status_timestamp() -> str:
     try:
         record = json.loads((STATUS_DIR / f"status.{SOURCE}.json").read_text())
@@ -109,6 +137,21 @@ def set_state(state: str) -> None:
                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                    check=False)
 
+
+def copilot_tool_alerts_enabled() -> bool:
+    """Menu preference: 'Alert for Copilot tool approvals'. On by default."""
+    try:
+        result = subprocess.run(
+            ["defaults", "read", "local.agentstatuslight", "copilotToolAlerts"],
+            stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+            text=True, check=False)
+        if result.returncode != 0:
+            return True
+        return result.stdout.strip().lower() not in ("0", "false", "no")
+    except OSError:
+        return True
+
+
 event = sys.argv[1] if len(sys.argv) > 1 else ""
 if not is_in_scope():
     raise SystemExit(0)
@@ -140,7 +183,7 @@ if key == "pretooluse" and SOURCE == "copilot":
     # the matching PostToolUse (or agentStop) cancels it by updating the file.
     if vscode_pre_tool_waits_for_user(payload):
         set_state("awaiting-input")
-    elif is_terminal_tool(payload):
+    elif copilot_tool_alerts_enabled() and (is_terminal_tool(payload) or is_external_file_read(payload)):
         schedule_terminal_watch()
     else:
         set_state("working")

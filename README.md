@@ -44,6 +44,8 @@ Each dot has the same menu:
 - **Use initial instead** — go back to the simple letter.
 - **Reveal status file** — open the agent's status file in Finder.
 - **Play failure sound** / **Play input-request sound** — turn sounds on or off.
+- **Alert for Copilot tool approvals** — on by default; turn it off when you let
+  Copilot run terminal commands and read files without asking.
 - **Start at Login** — start the app automatically after you restart your Mac.
 - **Close [agent] indicator** — hide this agent's dot (only its own menu can
   close it).
@@ -123,10 +125,13 @@ Tested and working:
   something, green when it finishes.
 - **GitHub Copilot** — works in the VS Code agent and in Copilot CLI. VS Code
   has no direct "waiting for you" event for its own chat agent, so the app turns
-  orange when Copilot asks you a question with its ask-questions tool. Terminal
-  command cards are not treated as input requests because auto-run commands
-  look identical to approval prompts; Copilot CLI sessions still alert through
-  their own notification hook.
+  orange when Copilot asks you a question with its ask-questions tool, and it
+  turns orange a few seconds later if a terminal command or an out-of-folder
+  file read is still waiting for your approval. Quick auto-run commands finish
+  before that and never alert. If you enable Copilot's "run without asking"
+  mode for a chat, turn off **Alert for Copilot tool approvals** so long
+  auto-run commands do not cause false alerts. Copilot CLI sessions alert
+  through their own notification hook.
 
 Included but not yet verified:
 
