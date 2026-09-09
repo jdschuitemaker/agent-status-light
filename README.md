@@ -70,6 +70,32 @@ after every reboot. The first time you enable it, the app copies itself to your
 Applications folder and restarts from there. Newer macOS versions may ask you to
 approve it in System Settings → General → Login Items.
 
+## Why a dot can hide on a MacBook with a notch
+
+The menu bar on a notched MacBook has a camera cutout in the middle. When the
+menu bar is crowded, macOS pushes extra icons into that cutout area, where they
+are not visible. This is macOS behaviour — the dot still exists, it is just
+hidden behind the notch.
+
+The easiest fix is to hide a few other apps' menu-bar icons (System Settings →
+Menu Bar → "Allow in the Menu Bar"). You can also make *all* menu-bar icons
+tighter, which gives everything more room:
+
+```zsh
+defaults -currentHost write -globalDomain NSStatusItemSpacing -int 2
+defaults -currentHost write -globalDomain NSStatusItemSelectionPadding -int 2
+killall ControlCenter
+```
+
+That spacing change affects every app's menu-bar icons, not just Agent Status
+Light. To restore Apple's wider spacing later:
+
+```zsh
+defaults -currentHost delete -globalDomain NSStatusItemSpacing
+defaults -currentHost delete -globalDomain NSStatusItemSelectionPadding
+killall ControlCenter
+```
+
 ## Getting the app
 
 ### Option 1: Download the prebuilt app
