@@ -113,6 +113,41 @@ def ancestor_terminal(table: dict, pid: int) -> tuple[str, int]:
     return "", 0
 
 
+def match_agent_pid(table: dict, cwd: str) -> int:
+    """Find the running agent CLI process whose working folder is this session."""
+    if not table or not cwd:
+        return 0
+    target = os.path.realpath(cwd)
+    for pid, (_, comm, tty) in table.items():
+        if not tty.startswith("tty"):
+            continue
+        if os.path.basename(comm) not in AGENT_PROCESS_NAMES:
+            continue
+        if os.path.realpath(process_cwd(pid) or "") == target:
+            return pid
+    return 0
+
+
+def descendants_of(table: dict, root: int, max_depth: int = 2) -> set:
+    """PIDs below the agent process (a running tool shows up here)."""
+    if not root:
+        return set()
+    children: dict = {}
+    for pid, (ppid, _, _) in table.items():
+        children.setdefault(ppid, []).append(pid)
+    found = set()
+    frontier = [root]
+    for _ in range(max_depth):
+        following = []
+        for node in frontier:
+            for kid in children.get(node, []):
+                if kid not in found:
+                    found.add(kid)
+                    following.append(kid)
+        frontier = following
+    return found
+
+
 def chain_context(table: dict) -> tuple[str, str, str]:
     tty = ""
     pid = os.getpid()
@@ -138,17 +173,10 @@ def process_context(payload: dict) -> tuple[str, str, str]:
     terminal app that owns that process."""
     table = process_table()
     cwd = str(payload.get("cwd") or "").strip()
-    if table and cwd:
-        target = os.path.realpath(cwd)
-        for pid, (_, comm, tty) in table.items():
-            if not tty.startswith("tty"):
-                continue
-            if os.path.basename(comm) not in AGENT_PROCESS_NAMES:
-                continue
-            if os.path.realpath(process_cwd(pid) or "") != target:
-                continue
-            terminal, term_pid = ancestor_terminal(table, pid)
-            return terminal, tty, str(term_pid)
+    owner = match_agent_pid(table, cwd)
+    if owner:
+        terminal, term_pid = ancestor_terminal(table, owner)
+        return terminal, table[owner][2], str(term_pid)
     return chain_context(table)
 
 
@@ -230,9 +258,12 @@ def schedule_terminal_watch() -> None:
                           else STATUS_DIR / f"status.{SOURCE}.json")
     if not target:
         return
+    table = process_table()
+    owner = match_agent_pid(table, str(payload.get("cwd") or ""))
+    baseline = ",".join(str(pid) for pid in descendants_of(table, owner))
     helper = [sys.executable, str(Path(__file__).resolve()),
               "watch-awaiting", SOURCE, SCOPE_ARG, target, SESSION_ID, SESSION_LABEL,
-              TERMINAL, TTY, TERMINAL_PID]
+              TERMINAL, TTY, TERMINAL_PID, str(owner), baseline]
     subprocess.Popen(helper, stdin=subprocess.DEVNULL,
                      stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                      start_new_session=True)
@@ -309,9 +340,20 @@ if event == "watch-awaiting":
     TERMINAL = sys.argv[7] if len(sys.argv) > 7 else ""
     TTY = sys.argv[8] if len(sys.argv) > 8 else ""
     TERMINAL_PID = sys.argv[9] if len(sys.argv) > 9 else "0"
+    owner = int(sys.argv[10]) if len(sys.argv) > 10 and sys.argv[10].isdigit() else 0
+    baseline = {int(value) for value in sys.argv[11].split(",")
+                if value.strip().isdigit()} if len(sys.argv) > 11 else set()
     time.sleep(3)
     path = session_path() if SESSION_ID else STATUS_DIR / f"status.{SOURCE}.json"
-    if target and status_nonce(path) == target:
+    resolved = not target or status_nonce(path) != target
+    if not resolved and owner:
+        table = process_table()
+        started = {pid for pid in descendants_of(table, owner) if pid not in baseline}
+        if started:
+            resolved = True
+    log_event("awaiting-check", {"session_id": SESSION_ID,
+                                 "decision": "resolved" if resolved else "input-required"})
+    if not resolved:
         set_state("awaiting-input")
     raise SystemExit(0)
 
