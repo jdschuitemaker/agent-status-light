@@ -90,6 +90,10 @@ set a status yourself — the dots update automatically from the agents.
 You can turn each sound on or off from any dot's menu, and set the input cue's
 volume there too.
 
+The input cue waits about a second and a half before it plays, and its dot
+stays yellow during that moment. That short confirmation is what keeps tools
+the agent resolves by itself (auto-approved commands, quick approvals) silent.
+
 ## Start at Login
 
 Choose **Start at Login** from any dot's menu and the app will start by itself
