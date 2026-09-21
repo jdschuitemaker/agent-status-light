@@ -209,22 +209,25 @@ def is_external_file_read(payload: dict) -> bool:
         return False
 
 
-def status_timestamp(path: Path) -> str:
+def status_nonce(path: Path) -> str:
+    """Every status write carries a fresh nonce, so a later event can be told
+    apart from the write that preceded it even inside the same second."""
     try:
         record = json.loads(path.read_text())
-        return str(record.get("updatedAt") or "")
+        return str(record.get("nonce") or "")
     except (OSError, json.JSONDecodeError):
         return ""
 
 
 def schedule_terminal_watch() -> None:
-    """A permission-gated terminal command may sit waiting for the user while
-    VS Code emits no event. Ensure a fresh working baseline, then check a few
-    seconds later: if nothing updated the status file, the tool is still
-    waiting and we turn the light orange."""
+    """Confirm a possible wait with a delayed re-check. Permission hooks fire
+    even for tools the agent then runs without the user (Codex auto-approves,
+    Copilot auto-runs), so do not alert on the event itself: keep working and
+    look again a few seconds later. Only a still-pending request turns the
+    light orange."""
     set_state("working")
-    target = status_timestamp(session_path() if SESSION_ID
-                              else STATUS_DIR / f"status.{SOURCE}.json")
+    target = status_nonce(session_path() if SESSION_ID
+                          else STATUS_DIR / f"status.{SOURCE}.json")
     if not target:
         return
     helper = [sys.executable, str(Path(__file__).resolve()),
@@ -308,7 +311,7 @@ if event == "watch-awaiting":
     TERMINAL_PID = sys.argv[9] if len(sys.argv) > 9 else "0"
     time.sleep(3)
     path = session_path() if SESSION_ID else STATUS_DIR / f"status.{SOURCE}.json"
-    if target and status_timestamp(path) == target:
+    if target and status_nonce(path) == target:
         set_state("awaiting-input")
     raise SystemExit(0)
 
@@ -337,7 +340,9 @@ elif key in ("pre", "sessionstart", "userpromptsubmit", "userpromptsubmitted",
 elif key in ("stop", "agentstop"):
     set_state("done")
 elif key in ("permissionrequest", "permission-request"):
-    set_state("awaiting-input")
+    # Codex asks permission for every tool, including ones it then runs without
+    # the user, so confirm the wait instead of alerting immediately.
+    schedule_terminal_watch()
 elif key == "notification":
     notification_type = str(payload.get("notification_type")
                             or payload.get("notificationType") or "").lower()

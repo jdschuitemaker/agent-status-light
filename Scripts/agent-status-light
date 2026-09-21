@@ -26,7 +26,8 @@ write_state() {
   local escaped_terminal="${terminal//\\/\\\\}"; escaped_terminal="${escaped_terminal//\"/\\\"}"
   local escaped_tty="${tty//\\/\\\\}"; escaped_tty="${escaped_tty//\"/\\\"}"
   terminal_pid="${terminal_pid//[^0-9]/}"; terminal_pid="${terminal_pid:-0}"
-  local json="{\"state\":\"$state\",\"updatedAt\":\"$timestamp\",\"source\":\"$source_name\",\"session\":\"$escaped_session\",\"label\":\"$escaped_label\",\"terminal\":\"$escaped_terminal\",\"tty\":\"$escaped_tty\",\"terminalPid\":$terminal_pid}"
+  local nonce; nonce="$(uuidgen 2>/dev/null || print -r -- "$$-$RANDOM$RANDOM")"
+  local json="{\"state\":\"$state\",\"updatedAt\":\"$timestamp\",\"source\":\"$source_name\",\"session\":\"$escaped_session\",\"label\":\"$escaped_label\",\"terminal\":\"$escaped_terminal\",\"tty\":\"$escaped_tty\",\"terminalPid\":$terminal_pid,\"nonce\":\"$nonce\"}"
   if [[ -n "$session_id" ]]; then
     local safe_session; safe_session="$(sanitize "$session_id")"
     local session_file="$sessions_dir/${safe_source}__${safe_session}.json"

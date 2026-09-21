@@ -77,8 +77,11 @@ set a status yourself — the dots update automatically from the agents.
 
 ## Sounds
 
-- When an agent needs your input, the dot turns orange and plays the macOS
-  "Ping" sound.
+- When an agent needs your input, the dot turns orange and plays a short
+  two-note "uh-oh" cue rebuilt from measurements of the classic ICQ
+  incoming-message alert: about 0.45 s long, a short high "uh", a tiny gap,
+  then a lower, longer "oh". It is an electronic recreation, not a spoken
+  voice.
 - When a task fails, the dot turns red and plays a short two-note sound made by
   the app itself.
 
