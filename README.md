@@ -111,6 +111,18 @@ unzip it, and move `Agent Status Light.app` to your Applications folder.
 > **Open Anyway**. Apple explains it here:
 > [Open a Mac app from an unidentified developer](https://support.apple.com/guide/mac/open-a-mac-app-from-an-unidentified-developer-mh40616/mac).
 
+If macOS still refuses to open it, you can clear the download flag once:
+
+```zsh
+xattr -d com.apple.quarantine "/Applications/Agent Status Light.app"
+```
+
+The app itself only draws the dots; the hooks that feed it live in the source
+code. Click the green **Code** button on the
+[repository page](https://github.com/jdschuitemaker/agent-status-light) →
+**Download ZIP**, unzip it, and use its `Scripts` folder for the “Connecting AI
+agents” step below.
+
 ### Option 2: Build it yourself
 
 Building from source avoids the warning because the app is created on your own
@@ -126,22 +138,25 @@ open "dist/Agent Status Light.app"
 
 ## Connecting AI agents
 
-The app watches agent activity inside a folder you choose. Sessions started in
-that folder (or any subfolder) update the dot automatically; sessions outside
-it do not.
-
-Install the hooks once with:
+Install the hooks once and you are done. By default they cover **every folder**
+on your Mac, so the dots work wherever you start an agent — Development,
+Downloads, Desktop, an external drive, anywhere:
 
 ```zsh
-python3 Scripts/install-hooks.py --scope "$HOME/Development"
+python3 Scripts/install-hooks.py
 ```
 
-Use another folder if you prefer, for example `--scope "$HOME/Dev"` or
-`--scope "$HOME/Documents"`.
+Then restart your agents once so they load the new hooks. An agent that is
+already running keeps the old hooks until it is restarted.
 
-Then restart your agents once so they load the new hooks. If you use a folder
-other than `~/Development`, pass the same `--scope` every time you rerun the
-installer.
+If you would rather only watch certain folders (so the dots stay quiet while you
+work elsewhere), list them separated by `:`:
+
+```zsh
+python3 Scripts/install-hooks.py --scope "$HOME/Development:$HOME/Downloads"
+```
+
+Rerun the installer with the same `--scope` whenever you want to change it.
 
 ### Which agents work
 
@@ -195,7 +210,7 @@ agent-status-light run codex -- codex exec "your task"
 - Every hook event is logged (private content removed) in
   `~/Library/Application Support/AgentStatusLight/hook-events.log`, which helps
   if something does not update.
-- The hooks change the status only for sessions inside your chosen folder tree,
-  so work elsewhere never disturbs the dots.
+- By default the hooks report every agent session anywhere on your Mac. Install
+  with `--scope` if you want to limit which folders may change the dots.
 - Inspired by the
   [AI Status Light reference project](https://github.com/Z060049/AI-status-light-Claude-Code-Cursor-Codex).

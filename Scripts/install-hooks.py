@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Install idempotent, Development-scoped agent status hooks."""
+"""Install idempotent agent status hooks that cover every folder by default."""
 import json
 import os
 import shutil
@@ -17,13 +17,18 @@ parser = argparse.ArgumentParser(
 )
 parser.add_argument(
     "--scope",
-    default=os.environ.get("AGENT_STATUS_LIGHT_SCOPE_ROOT", str(Path.home() / "Development")),
-    help="directory tree whose agent sessions should update the light (default: ~/Development)",
+    default=os.environ.get("AGENT_STATUS_LIGHT_SCOPE_ROOT", "/"),
+    help="directory tree whose agent sessions should update the light; separate "
+         "several roots with ':' (default: /, meaning every folder)",
 )
 args = parser.parse_args()
-SCOPE_ROOT = Path(args.scope).expanduser().resolve()
-if not SCOPE_ROOT.is_dir():
-    raise SystemExit(f"Scope directory does not exist: {SCOPE_ROOT}")
+SCOPE_ROOTS = [Path(part).expanduser() for part in args.scope.split(os.pathsep) if part.strip()]
+if not SCOPE_ROOTS:
+    SCOPE_ROOTS = [Path("/")]
+for root in SCOPE_ROOTS:
+    if not root.is_dir():
+        raise SystemExit(f"Scope directory does not exist: {root}")
+SCOPE_ROOT = os.pathsep.join(str(root.resolve()) for root in SCOPE_ROOTS)
 
 def command(*parts: str) -> str:
     import shlex

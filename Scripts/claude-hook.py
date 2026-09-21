@@ -10,7 +10,7 @@ from pathlib import Path
 
 CLI = Path(__file__).with_name("agent-status-light")
 SOURCE = sys.argv[2] if len(sys.argv) > 2 else "claude"
-SCOPE_ROOT = Path(sys.argv[3]).expanduser() if len(sys.argv) > 3 else Path.home() / "Development"
+SCOPE_ARG = sys.argv[3] if len(sys.argv) > 3 else "/"
 LOG_PATH = Path.home() / "Library/Application Support/AgentStatusLight/hook-events.log"
 STATUS_DIR = Path.home() / "Library/Application Support/AgentStatusLight"
 SENSITIVE_KEYS = {
@@ -20,6 +20,12 @@ SENSITIVE_KEYS = {
     "tool_input", "toolinput", "tool_response", "toolresponse",
     "transcript_path", "transcriptpath",
 }
+
+
+def scope_roots():
+    """Scope argument may hold several roots separated by the OS path separator."""
+    roots = [Path(part).expanduser() for part in SCOPE_ARG.split(os.pathsep) if part.strip()]
+    return roots or [Path("/")]
 
 
 def scrub(value, depth=0):
@@ -97,7 +103,7 @@ def schedule_terminal_watch() -> None:
     if not target:
         return
     helper = [sys.executable, str(Path(__file__).resolve()),
-              "watch-awaiting", SOURCE, str(SCOPE_ROOT), target]
+              "watch-awaiting", SOURCE, SCOPE_ARG, target]
     subprocess.Popen(helper, stdin=subprocess.DEVNULL,
                      stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                      start_new_session=True)
@@ -126,11 +132,14 @@ def log_event(event: str, payload: dict) -> None:
         pass
 
 def is_in_scope() -> bool:
-    try:
-        Path.cwd().resolve().relative_to(SCOPE_ROOT.resolve())
-        return True
-    except ValueError:
-        return False
+    cwd = Path.cwd().resolve()
+    for root in scope_roots():
+        try:
+            cwd.relative_to(root.resolve())
+            return True
+        except (OSError, ValueError):
+            continue
+    return False
 
 def set_state(state: str) -> None:
     subprocess.run([str(CLI), state, SOURCE], stdin=subprocess.DEVNULL,
