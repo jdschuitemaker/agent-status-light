@@ -346,13 +346,24 @@ if event == "watch-awaiting":
     time.sleep(1.0)
     path = session_path() if SESSION_ID else STATUS_DIR / f"status.{SOURCE}.json"
     resolved = not target or status_nonce(path) != target
+    started = set()
     if not resolved and owner:
         table = process_table()
         started = {pid for pid in descendants_of(table, owner) if pid not in baseline}
         if started:
             resolved = True
+    detail = ""
+    if owner:
+        table = process_table()
+        live = descendants_of(table, owner)
+        names = {pid: os.path.basename(table[pid][1]) for pid in live if pid in table}
+        detail = ",".join(f"{pid}:{names[pid]}" for pid in sorted(live))
     log_event("awaiting-check", {"session_id": SESSION_ID,
-                                 "decision": "resolved" if resolved else "input-required"})
+                                 "decision": "resolved" if resolved else "input-required",
+                                 "owner": owner,
+                                 "baseline": len(baseline),
+                                 "live": detail,
+                                 "started": ",".join(str(pid) for pid in sorted(started))})
     if not resolved:
         set_state("awaiting-input")
     raise SystemExit(0)

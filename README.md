@@ -67,6 +67,10 @@ Each dot has the same menu:
 - **Play failure sound** / **Play input-request sound** — turn sounds on or off.
 - **Input sound volume** — set the input-request cue to 25%, 50%, 75%, or
   100% (50% by default).
+- **Only alert when I'm away** — on by default. While the agent app or
+  terminal is in front (the prompt is already on your screen), the dot still
+  turns orange but the cue stays quiet; you only hear it when you are
+  elsewhere.
 - **Alert for Copilot tool approvals** — on by default; turn it off when you let
   Copilot run terminal commands and read files without asking.
 - **Start at Login** — start the app automatically after you restart your Mac.
