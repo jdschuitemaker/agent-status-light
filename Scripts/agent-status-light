@@ -3,16 +3,38 @@
 set -euo pipefail
 
 status_dir="$HOME/Library/Application Support/AgentStatusLight"
+sessions_dir="$status_dir/sessions"
+
+sanitize() {
+  print -r -- "${1//[^A-Za-z0-9_.-]/_}"
+}
 
 write_state() {
   local state="$1"
   local source_name="${2:-cli}"
-  local safe_source="${source_name//[^A-Za-z0-9_.-]/_}"
+  local session_id="${3:-}"
+  local label="${4:-}"
+  local safe_source; safe_source="$(sanitize "$source_name")"
   mkdir -p "$status_dir"
   local timestamp tmp_file
   timestamp="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  local escaped_session="${session_id//\\/\\\\}"; escaped_session="${escaped_session//\"/\\\"}"
+  local escaped_label="${label//\\/\\\\}"; escaped_label="${escaped_label//\"/\\\"}"
+  local json="{\"state\":\"$state\",\"updatedAt\":\"$timestamp\",\"source\":\"$source_name\",\"session\":\"$escaped_session\",\"label\":\"$escaped_label\"}"
+  if [[ -n "$session_id" ]]; then
+    local safe_session; safe_session="$(sanitize "$session_id")"
+    local session_file="$sessions_dir/${safe_source}__${safe_session}.json"
+    if [[ "$state" == off ]]; then
+      rm -f "$session_file"
+    else
+      mkdir -p "$sessions_dir"
+      tmp_file="$(mktemp "$sessions_dir/session.XXXXXX")"
+      print -r -- "$json" > "$tmp_file"
+      mv -f "$tmp_file" "$session_file"
+    fi
+  fi
   tmp_file="$(mktemp "$status_dir/status.XXXXXX")"
-  print -r -- "{\"state\":\"$state\",\"updatedAt\":\"$timestamp\",\"source\":\"$source_name\"}" > "$tmp_file"
+  print -r -- "$json" > "$tmp_file"
   mv -f "$tmp_file" "$status_dir/status.${safe_source}.json"
 }
 
@@ -41,10 +63,10 @@ case "${1:-}" in
   awaiting-input|input|approval) state=awaiting-input ;;
   off|idle|clear) state=off ;;
   *)
-    print -u2 "Usage: agent-status-light {working|done|error|off} [source]"
+    print -u2 "Usage: agent-status-light {working|done|error|off} [source] [session-id] [label]"
     print -u2 "       agent-status-light run [source] -- command [args...]"
     exit 64
     ;;
 esac
 
-write_state "$state" "${2:-cli}"
+write_state "$state" "${2:-cli}" "${3:-}" "${4:-}"

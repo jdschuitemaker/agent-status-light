@@ -35,11 +35,22 @@ Every dot is independent: it shows only its own agent's status, and it can only
 close itself. The app remembers which dots you added, so they come back the next
 time you start it.
 
+### Several sessions of the same agent
+
+If you have two Codex windows open, you still see one Codex dot — but its menu
+now has a **Sessions** section listing each window by folder name with its own
+status. The dot itself shows the most important state of all sessions: orange
+if any session needs you, then red, then yellow, then green.
+
+Session entries disappear again when their session ends.
+
 ## What every dot's menu does
 
 Each dot has the same menu:
 
 - **Add ▸ agent name** — show another agent's dot.
+- **Sessions** — list the running sessions of this agent (shown when there is
+  more than one); click one to reveal its status file.
 - **Choose logo…** — use your own image (PNG, ICNS, JPEG, or TIFF) for the dot.
 - **Use initial instead** — go back to the simple letter.
 - **Reveal status file** — open the agent's status file in Finder.
@@ -207,6 +218,10 @@ agent-status-light run codex -- codex exec "your task"
 ## Handy details for curious people
 
 - A "completed" dot turns grey again after 20 seconds of no new activity.
+- Every session writes its own small file under
+  `~/Library/Application Support/AgentStatusLight/sessions/`. The file is
+  removed when the session ends, and ignored after 24 hours if an agent exits
+  without saying goodbye.
 - Every hook event is logged (private content removed) in
   `~/Library/Application Support/AgentStatusLight/hook-events.log`, which helps
   if something does not update.

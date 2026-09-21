@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 """Translate Claude Code lifecycle hooks into Agent Status Light states."""
 import datetime as _dt
+import hashlib
 import json
 import os
+import re
 import subprocess
 import sys
 import time
@@ -13,6 +15,9 @@ SOURCE = sys.argv[2] if len(sys.argv) > 2 else "claude"
 SCOPE_ARG = sys.argv[3] if len(sys.argv) > 3 else "/"
 LOG_PATH = Path.home() / "Library/Application Support/AgentStatusLight/hook-events.log"
 STATUS_DIR = Path.home() / "Library/Application Support/AgentStatusLight"
+SESSIONS_DIR = STATUS_DIR / "sessions"
+SESSION_ID = ""
+SESSION_LABEL = ""
 SENSITIVE_KEYS = {
     "args", "content", "env", "message", "modified_prompt", "modifiedprompt",
     "modified_transformed_prompt", "modifiedtransformedprompt", "prompt",
@@ -26,6 +31,28 @@ def scope_roots():
     """Scope argument may hold several roots separated by the OS path separator."""
     roots = [Path(part).expanduser() for part in SCOPE_ARG.split(os.pathsep) if part.strip()]
     return roots or [Path("/")]
+
+
+def safe_name(value: str) -> str:
+    return re.sub(r"[^A-Za-z0-9_.-]", "_", value)
+
+
+def session_path() -> Path:
+    return SESSIONS_DIR / f"{safe_name(SOURCE)}__{safe_name(SESSION_ID)}.json"
+
+
+def session_identity(payload: dict) -> tuple[str, str]:
+    """Give every agent session its own key and a readable folder label."""
+    sid = str(payload.get("session_id") or payload.get("sessionId")
+              or payload.get("sessionID") or "").strip()
+    cwd = str(payload.get("cwd") or payload.get("workspace") or "").strip()
+    label = Path(cwd).name if cwd else ""
+    if not sid:
+        seed = cwd or label or SOURCE
+        sid = "cwd-" + hashlib.sha1(seed.encode("utf-8")).hexdigest()[:12]
+    if not label:
+        label = SOURCE.capitalize()
+    return sid, label
 
 
 def scrub(value, depth=0):
@@ -85,9 +112,9 @@ def is_external_file_read(payload: dict) -> bool:
         return False
 
 
-def status_timestamp() -> str:
+def status_timestamp(path: Path) -> str:
     try:
-        record = json.loads((STATUS_DIR / f"status.{SOURCE}.json").read_text())
+        record = json.loads(path.read_text())
         return str(record.get("updatedAt") or "")
     except (OSError, json.JSONDecodeError):
         return ""
@@ -99,11 +126,12 @@ def schedule_terminal_watch() -> None:
     seconds later: if nothing updated the status file, the tool is still
     waiting and we turn the light orange."""
     set_state("working")
-    target = status_timestamp()
+    target = status_timestamp(session_path() if SESSION_ID
+                              else STATUS_DIR / f"status.{SOURCE}.json")
     if not target:
         return
     helper = [sys.executable, str(Path(__file__).resolve()),
-              "watch-awaiting", SOURCE, SCOPE_ARG, target]
+              "watch-awaiting", SOURCE, SCOPE_ARG, target, SESSION_ID, SESSION_LABEL]
     subprocess.Popen(helper, stdin=subprocess.DEVNULL,
                      stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                      start_new_session=True)
@@ -142,7 +170,7 @@ def is_in_scope() -> bool:
     return False
 
 def set_state(state: str) -> None:
-    subprocess.run([str(CLI), state, SOURCE], stdin=subprocess.DEVNULL,
+    subprocess.run([str(CLI), state, SOURCE, SESSION_ID, SESSION_LABEL], stdin=subprocess.DEVNULL,
                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                    check=False)
 
@@ -174,11 +202,15 @@ except (json.JSONDecodeError, EOFError):
 if event == "watch-awaiting":
     # Background helper spawned by schedule_terminal_watch.
     target = sys.argv[4] if len(sys.argv) > 4 else ""
+    SESSION_ID = sys.argv[5] if len(sys.argv) > 5 else ""
+    SESSION_LABEL = sys.argv[6] if len(sys.argv) > 6 else ""
     time.sleep(3)
-    if target and status_timestamp() == target:
+    path = session_path() if SESSION_ID else STATUS_DIR / f"status.{SOURCE}.json"
+    if target and status_timestamp(path) == target:
         set_state("awaiting-input")
     raise SystemExit(0)
 
+SESSION_ID, SESSION_LABEL = session_identity(payload)
 log_event(event, payload)
 
 # Normalize names from all supported surfaces: Codex, Cursor, Claude Code,
