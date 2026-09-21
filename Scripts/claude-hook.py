@@ -343,7 +343,7 @@ if event == "watch-awaiting":
     owner = int(sys.argv[10]) if len(sys.argv) > 10 and sys.argv[10].isdigit() else 0
     baseline = {int(value) for value in sys.argv[11].split(",")
                 if value.strip().isdigit()} if len(sys.argv) > 11 else set()
-    time.sleep(1.5)
+    time.sleep(1.0)
     path = session_path() if SESSION_ID else STATUS_DIR / f"status.{SOURCE}.json"
     resolved = not target or status_nonce(path) != target
     if not resolved and owner:
