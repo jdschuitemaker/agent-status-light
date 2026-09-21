@@ -18,6 +18,9 @@ STATUS_DIR = Path.home() / "Library/Application Support/AgentStatusLight"
 SESSIONS_DIR = STATUS_DIR / "sessions"
 SESSION_ID = ""
 SESSION_LABEL = ""
+TERMINAL = ""
+TTY = ""
+TERMINAL_PID = "0"
 SENSITIVE_KEYS = {
     "args", "content", "env", "message", "modified_prompt", "modifiedprompt",
     "modified_transformed_prompt", "modifiedtransformedprompt", "prompt",
@@ -53,6 +56,100 @@ def session_identity(payload: dict) -> tuple[str, str]:
     if not label:
         label = SOURCE.capitalize()
     return sid, label
+
+
+TERMINAL_NAMES = ("Terminal", "iTerm2", "Warp", "Alacritty", "kitty", "WezTerm",
+                  "Ghostty", "Hyper", "Tabby", "Termius", "Code", "Cursor", "Windsurf")
+AGENT_PROCESS_NAMES = ("codex", "claude", "cursor-agent", "cursor", "copilot", "gemini")
+
+
+def process_table() -> dict:
+    try:
+        result = subprocess.run(["ps", "-axo", "pid=,ppid=,tty=,command="],
+                                stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+                                text=True, check=False)
+    except OSError:
+        return {}
+    table = {}
+    for line in result.stdout.splitlines():
+        parts = line.split(None, 3)
+        if len(parts) < 4:
+            continue
+        try:
+            pid, ppid = int(parts[0]), int(parts[1])
+        except ValueError:
+            continue
+        command = parts[3]
+        exe = command.split()[0] if command.split() else ""
+        table[pid] = (ppid, exe, parts[2].strip())
+    return table
+
+
+def process_cwd(pid: int) -> str:
+    try:
+        result = subprocess.run(["lsof", "-a", "-p", str(pid), "-d", "cwd", "-Fn"],
+                                stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+                                text=True, check=False)
+    except OSError:
+        return ""
+    for line in result.stdout.splitlines():
+        if line.startswith("n"):
+            return line[1:]
+    return ""
+
+
+def ancestor_terminal(table: dict, pid: int) -> tuple[str, int]:
+    seen = set()
+    while pid and pid not in seen:
+        seen.add(pid)
+        entry = table.get(pid)
+        if not entry:
+            break
+        ppid, comm, _ = entry
+        base = os.path.basename(comm)
+        if base in TERMINAL_NAMES:
+            return base, pid
+        pid = ppid
+    return "", 0
+
+
+def chain_context(table: dict) -> tuple[str, str, str]:
+    tty = ""
+    pid = os.getpid()
+    seen = set()
+    while pid and pid not in seen:
+        seen.add(pid)
+        entry = table.get(pid)
+        if not entry:
+            break
+        ppid, comm, proc_tty = entry
+        if not tty and proc_tty and proc_tty != "??":
+            tty = proc_tty
+        base = os.path.basename(comm)
+        if base in TERMINAL_NAMES:
+            return base, tty, str(pid)
+        pid = ppid
+    return "", tty, "0"
+
+
+def process_context(payload: dict) -> tuple[str, str, str]:
+    """Find the terminal window hosting this session: match the session's
+    working folder against the running agent processes, then walk up to the
+    terminal app that owns that process."""
+    table = process_table()
+    cwd = str(payload.get("cwd") or "").strip()
+    if table and cwd:
+        target = os.path.realpath(cwd)
+        for pid, (_, comm, tty) in table.items():
+            if not tty.startswith("tty"):
+                continue
+            if os.path.basename(comm) not in AGENT_PROCESS_NAMES:
+                continue
+            if os.path.realpath(process_cwd(pid) or "") != target:
+                continue
+            terminal, term_pid = ancestor_terminal(table, pid)
+            return terminal, tty, str(term_pid)
+    return chain_context(table)
 
 
 def scrub(value, depth=0):
@@ -131,7 +228,8 @@ def schedule_terminal_watch() -> None:
     if not target:
         return
     helper = [sys.executable, str(Path(__file__).resolve()),
-              "watch-awaiting", SOURCE, SCOPE_ARG, target, SESSION_ID, SESSION_LABEL]
+              "watch-awaiting", SOURCE, SCOPE_ARG, target, SESSION_ID, SESSION_LABEL,
+              TERMINAL, TTY, TERMINAL_PID]
     subprocess.Popen(helper, stdin=subprocess.DEVNULL,
                      stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                      start_new_session=True)
@@ -170,7 +268,8 @@ def is_in_scope() -> bool:
     return False
 
 def set_state(state: str) -> None:
-    subprocess.run([str(CLI), state, SOURCE, SESSION_ID, SESSION_LABEL], stdin=subprocess.DEVNULL,
+    subprocess.run([str(CLI), state, SOURCE, SESSION_ID, SESSION_LABEL,
+                    TERMINAL, TTY, TERMINAL_PID], stdin=subprocess.DEVNULL,
                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                    check=False)
 
@@ -204,6 +303,9 @@ if event == "watch-awaiting":
     target = sys.argv[4] if len(sys.argv) > 4 else ""
     SESSION_ID = sys.argv[5] if len(sys.argv) > 5 else ""
     SESSION_LABEL = sys.argv[6] if len(sys.argv) > 6 else ""
+    TERMINAL = sys.argv[7] if len(sys.argv) > 7 else ""
+    TTY = sys.argv[8] if len(sys.argv) > 8 else ""
+    TERMINAL_PID = sys.argv[9] if len(sys.argv) > 9 else "0"
     time.sleep(3)
     path = session_path() if SESSION_ID else STATUS_DIR / f"status.{SOURCE}.json"
     if target and status_timestamp(path) == target:
@@ -211,6 +313,7 @@ if event == "watch-awaiting":
     raise SystemExit(0)
 
 SESSION_ID, SESSION_LABEL = session_identity(payload)
+TERMINAL, TTY, TERMINAL_PID = process_context(payload)
 log_event(event, payload)
 
 # Normalize names from all supported surfaces: Codex, Cursor, Claude Code,

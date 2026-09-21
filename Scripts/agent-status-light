@@ -14,13 +14,19 @@ write_state() {
   local source_name="${2:-cli}"
   local session_id="${3:-}"
   local label="${4:-}"
+  local terminal="${5:-}"
+  local tty="${6:-}"
+  local terminal_pid="${7:-0}"
   local safe_source; safe_source="$(sanitize "$source_name")"
   mkdir -p "$status_dir"
   local timestamp tmp_file
   timestamp="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
   local escaped_session="${session_id//\\/\\\\}"; escaped_session="${escaped_session//\"/\\\"}"
   local escaped_label="${label//\\/\\\\}"; escaped_label="${escaped_label//\"/\\\"}"
-  local json="{\"state\":\"$state\",\"updatedAt\":\"$timestamp\",\"source\":\"$source_name\",\"session\":\"$escaped_session\",\"label\":\"$escaped_label\"}"
+  local escaped_terminal="${terminal//\\/\\\\}"; escaped_terminal="${escaped_terminal//\"/\\\"}"
+  local escaped_tty="${tty//\\/\\\\}"; escaped_tty="${escaped_tty//\"/\\\"}"
+  terminal_pid="${terminal_pid//[^0-9]/}"; terminal_pid="${terminal_pid:-0}"
+  local json="{\"state\":\"$state\",\"updatedAt\":\"$timestamp\",\"source\":\"$source_name\",\"session\":\"$escaped_session\",\"label\":\"$escaped_label\",\"terminal\":\"$escaped_terminal\",\"tty\":\"$escaped_tty\",\"terminalPid\":$terminal_pid}"
   if [[ -n "$session_id" ]]; then
     local safe_session; safe_session="$(sanitize "$session_id")"
     local session_file="$sessions_dir/${safe_source}__${safe_session}.json"
@@ -69,4 +75,4 @@ case "${1:-}" in
     ;;
 esac
 
-write_state "$state" "${2:-cli}" "${3:-}" "${4:-}"
+write_state "$state" "${2:-cli}" "${3:-}" "${4:-}" "${5:-}" "${6:-}" "${7:-0}"

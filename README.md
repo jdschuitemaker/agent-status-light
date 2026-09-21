@@ -42,6 +42,10 @@ now has a **Sessions** section listing each window by folder name with its own
 status. The dot itself shows the most important state of all sessions: orange
 if any session needs you, then red, then yellow, then green.
 
+Click a session to bring its window to the front, so you can answer the prompt
+that turned the dot orange. Terminal and iTerm2 jump to the exact tab; other
+terminal apps are brought to the front.
+
 Session entries disappear again when their session ends.
 
 ## What every dot's menu does
@@ -50,7 +54,7 @@ Each dot has the same menu:
 
 - **Add ▸ agent name** — show another agent's dot.
 - **Sessions** — list the running sessions of this agent (shown when there is
-  more than one); click one to reveal its status file.
+  more than one); click one to activate its window.
 - **Choose logo…** — use your own image (PNG, ICNS, JPEG, or TIFF) for the dot.
 - **Use initial instead** — go back to the simple letter.
 - **Reveal status file** — open the agent's status file in Finder.
