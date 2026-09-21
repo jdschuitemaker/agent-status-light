@@ -46,6 +46,11 @@ Click a session to bring its window to the front, so you can answer the prompt
 that turned the dot orange. Terminal and iTerm2 jump to the exact tab; other
 terminal apps are brought to the front.
 
+The first time you click a session, macOS asks whether Agent Status Light may
+control your terminal app. Allow it once — if you decline, clicking still brings
+the app forward, but it cannot select the right tab. You can change this later in
+System Settings → Privacy & Security → Automation.
+
 Session entries disappear again when their session ends.
 
 ## What every dot's menu does
@@ -54,7 +59,8 @@ Each dot has the same menu:
 
 - **Add ▸ agent name** — show another agent's dot.
 - **Sessions** — list the running sessions of this agent (shown when there is
-  more than one); click one to activate its window.
+  more than one); click one to activate its window (macOS asks for permission
+  the first time).
 - **Choose logo…** — use your own image (PNG, ICNS, JPEG, or TIFF) for the dot.
 - **Use initial instead** — go back to the simple letter.
 - **Reveal status file** — open the agent's status file in Finder.
