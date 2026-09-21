@@ -65,6 +65,8 @@ Each dot has the same menu:
 - **Use initial instead** — go back to the simple letter.
 - **Reveal status file** — open the agent's status file in Finder.
 - **Play failure sound** / **Play input-request sound** — turn sounds on or off.
+- **Input sound volume** — set the input-request cue to 25%, 50%, 75%, or
+  100% (50% by default).
 - **Alert for Copilot tool approvals** — on by default; turn it off when you let
   Copilot run terminal commands and read files without asking.
 - **Start at Login** — start the app automatically after you restart your Mac.
@@ -85,7 +87,8 @@ set a status yourself — the dots update automatically from the agents.
 - When a task fails, the dot turns red and plays a short two-note sound made by
   the app itself.
 
-You can turn each sound on or off from any dot's menu.
+You can turn each sound on or off from any dot's menu, and set the input cue's
+volume there too.
 
 ## Start at Login
 
