@@ -61,6 +61,16 @@ def session_identity(payload: dict) -> tuple[str, str]:
 TERMINAL_NAMES = ("Terminal", "iTerm2", "Warp", "Alacritty", "kitty", "WezTerm",
                   "Ghostty", "Hyper", "Tabby", "Termius", "Code", "Cursor", "Windsurf")
 AGENT_PROCESS_NAMES = ("codex", "claude", "cursor-agent", "cursor", "copilot", "gemini")
+HOST_PROCESS_NAMES = ("Code", "Code - Insiders", "VSCodium", "Cursor", "Windsurf", "ChatGPT")
+APP_EXECUTABLE = re.compile(r"^(.*?\.app/Contents/MacOS/\S+)")
+
+
+def command_executable(command: str) -> str:
+    """First token of a command line, keeping app paths that contain spaces."""
+    match = APP_EXECUTABLE.match(command)
+    if match:
+        return match.group(1)
+    return command.split()[0] if command.split() else ""
 
 
 def process_table() -> dict:
@@ -80,7 +90,7 @@ def process_table() -> dict:
         except ValueError:
             continue
         command = parts[3]
-        exe = command.split()[0] if command.split() else ""
+        exe = command_executable(command)
         table[pid] = (ppid, exe, parts[2].strip())
     return table
 
@@ -128,8 +138,21 @@ def match_agent_pid(table: dict, cwd: str) -> int:
     return 0
 
 
-def descendants_of(table: dict, root: int, max_depth: int = 2) -> set:
-    """PIDs below the agent process (a running tool shows up here)."""
+def match_owner(table: dict, cwd: str) -> tuple:
+    """Owner of a session: a CLI agent when we can find one, otherwise a
+    VS Code-style host app that runs the agent in an integrated terminal."""
+    pid = match_agent_pid(table, cwd)
+    if pid:
+        return pid, False
+    for pid, (_, comm, _) in table.items():
+        if os.path.basename(comm) in HOST_PROCESS_NAMES:
+            return pid, True
+    return 0, False
+
+
+def descendants_of(table: dict, root: int, max_depth: int = 2, tty_only: bool = False) -> set:
+    """PIDs below the owner. A running tool shows up either as a new process
+    (CLI agents) or as a new tty-owning process (integrated terminals)."""
     if not root:
         return set()
     children: dict = {}
@@ -145,6 +168,8 @@ def descendants_of(table: dict, root: int, max_depth: int = 2) -> set:
                     found.add(kid)
                     following.append(kid)
         frontier = following
+    if tty_only:
+        found = {pid for pid in found if table.get(pid, (0, "", ""))[2].startswith("tty")}
     return found
 
 
@@ -173,10 +198,12 @@ def process_context(payload: dict) -> tuple[str, str, str]:
     terminal app that owns that process."""
     table = process_table()
     cwd = str(payload.get("cwd") or "").strip()
-    owner = match_agent_pid(table, cwd)
-    if owner:
+    owner, is_host = match_owner(table, cwd)
+    if owner and not is_host:
         terminal, term_pid = ancestor_terminal(table, owner)
         return terminal, table[owner][2], str(term_pid)
+    if owner and is_host:
+        return os.path.basename(table[owner][1]), "", str(owner)
     return chain_context(table)
 
 
@@ -259,11 +286,13 @@ def schedule_terminal_watch() -> None:
     if not target:
         return
     table = process_table()
-    owner = match_agent_pid(table, str(payload.get("cwd") or ""))
-    baseline = ",".join(str(pid) for pid in descendants_of(table, owner))
+    owner, is_host = match_owner(table, str(payload.get("cwd") or ""))
+    depth = 3 if is_host else 2
+    baseline = ",".join(str(pid) for pid in
+                        descendants_of(table, owner, depth, tty_only=is_host))
     helper = [sys.executable, str(Path(__file__).resolve()),
               "watch-awaiting", SOURCE, SCOPE_ARG, target, SESSION_ID, SESSION_LABEL,
-              TERMINAL, TTY, TERMINAL_PID, str(owner), baseline]
+              TERMINAL, TTY, TERMINAL_PID, str(owner), baseline, "1" if is_host else "0"]
     subprocess.Popen(helper, stdin=subprocess.DEVNULL,
                      stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                      start_new_session=True)
@@ -343,24 +372,30 @@ if event == "watch-awaiting":
     owner = int(sys.argv[10]) if len(sys.argv) > 10 and sys.argv[10].isdigit() else 0
     baseline = {int(value) for value in sys.argv[11].split(",")
                 if value.strip().isdigit()} if len(sys.argv) > 11 else set()
-    time.sleep(1.0)
+    is_host = len(sys.argv) > 12 and sys.argv[12] == "1"
+    depth = 3 if is_host else 2
+    delay = 1.0 if (owner and not is_host) else (1.5 if is_host else 3.0)
+    time.sleep(delay)
     path = session_path() if SESSION_ID else STATUS_DIR / f"status.{SOURCE}.json"
     resolved = not target or status_nonce(path) != target
     started = set()
     if not resolved and owner:
         table = process_table()
-        started = {pid for pid in descendants_of(table, owner) if pid not in baseline}
+        started = {pid for pid in descendants_of(table, owner, depth, tty_only=is_host)
+                   if pid not in baseline}
         if started:
             resolved = True
     detail = ""
     if owner:
         table = process_table()
-        live = descendants_of(table, owner)
+        live = descendants_of(table, owner, depth, tty_only=is_host)
         names = {pid: os.path.basename(table[pid][1]) for pid in live if pid in table}
         detail = ",".join(f"{pid}:{names[pid]}" for pid in sorted(live))
     log_event("awaiting-check", {"session_id": SESSION_ID,
                                  "decision": "resolved" if resolved else "input-required",
                                  "owner": owner,
+                                 "host": is_host,
+                                 "delay": delay,
                                  "baseline": len(baseline),
                                  "live": detail,
                                  "started": ",".join(str(pid) for pid in sorted(started))})

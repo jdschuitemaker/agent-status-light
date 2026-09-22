@@ -94,9 +94,10 @@ set a status yourself — the dots update automatically from the agents.
 You can turn each sound on or off from any dot's menu, and set the input cue's
 volume there too.
 
-The input cue waits about a second before it plays, and its dot stays yellow
-during that moment. That short confirmation is what keeps tools the agent
-resolves by itself (auto-approved commands, quick approvals) silent.
+The input cue waits about a second (a little longer for VS Code/Copilot)
+before it plays, and its dot stays yellow during that moment. The app checks
+that no tool is actually running before it alerts, which is what keeps tools
+the agent resolves by itself (auto-approved commands, quick approvals) silent.
 
 ## Start at Login
 
